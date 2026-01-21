@@ -109,3 +109,12 @@ npm run ingest
 - `enabled`：启用/禁用整个 server
 - `tools`：可选，按工具名开关；不写默认全启用，写 `false` 可禁用单个工具
 
+## 安全提示
+
+- 不要提交 `.env` 或任何真实 key。本仓库默认忽略 `.env` / `.env.*`，并保留 `.env.example`。
+- 如果不小心把 key 推到了 GitHub，请立刻轮换/重置，并视情况清理历史记录。
+- 本地 NapCat 包（`NapCat.Shell.Windows.Node/`）和运行数据（`data/`）已默认忽略，避免泄露 token 与聊天记录。
+
+## 致谢
+
+- NapCatQQ（OneBot / NTQQ 协议端）：https://github.com/NapNeko/NapCatQQ

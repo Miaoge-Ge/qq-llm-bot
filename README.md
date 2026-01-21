@@ -1,93 +1,93 @@
-# QQ + LLM 聊天机器人（NapCatQQ）
+# QQ LLM Bot (NapCat / OneBot)
 
-一个最小可用的 QQ 聊天机器人骨架：
-- NapCatQQ（OneBot 消息流）接入与发送
-- 群聊/私聊分流与触发策略（@ / 关键词 / 全量）
-- 记忆系统（短期对话窗口 + 长期记忆）
-- 最小 RAG（本地知识库切片 + 检索）
-- MCP（可选，对接外部工具）
+[中文说明](README.zh-CN.md)
 
-## 运行前提
+A minimal QQ bot skeleton built on NapCat (OneBot), powered by an OpenAI-compatible LLM. Includes short/long memory, lightweight RAG, optional vision, and MCP tools.
+
+## Features
+
+- NapCatQQ (OneBot) receive/send
+- Group routing modes: mention / keyword / all
+- Memory: short context window + long-term memory via command
+- RAG: local knowledge ingestion + retrieval
+- Optional vision (multimodal) via OpenAI-compatible gateway
+- Optional MCP tools (external tool servers)
+
+## Requirements
 
 - Node.js 18+
-- 已启动 NapCatQQ，并开启 OneBot WebSocket 上报与 HTTP API
+- NapCatQQ running with OneBot WebSocket events + HTTP API enabled
 
-## 安装
+## Quick Start
 
 ```bash
 npm install
-```
-
-## 配置（环境变量）
-
-推荐做法：复制 `.env.example` 为 `.env`，然后只改你自己的值。
-
-- `NAPCAT_HTTP_URL` NapCat HTTP API 基址（默认 `http://127.0.0.1:3000`）
-- `NAPCAT_WS_URL` NapCat WebSocket 上报地址（默认 `ws://127.0.0.1:3001`）
-- `NAPCAT_ACCESS_TOKEN`（可选）
-- `BOT_QQ_ID`（可选，不填则从事件的 `self_id` 自动识别）
-
-- `LLM_BASE_URL` OpenAI 兼容网关（默认 `https://api.openai.com`，可带或不带 `/v1`）
-- `LLM_API_KEY` OpenAPI Key（注意是 `=` 赋值，不要写成中文冒号）
-- `LLM_MODEL`（默认 `gpt-4o-mini`）
-- `LLM_TEMPERATURE`（默认 `0.3`）
-
-- `GROUP_REPLY_MODE`（`mention`/`keyword`/`all`，默认 `mention`）
-- `GROUP_KEYWORDS`（默认 `["机器人"]`，支持 JSON 数组或逗号分隔）
-- `MAX_SHORT_MEMORY_TURNS`（默认 `20`）
-
-示例（PowerShell）：
-
-```powershell
-$env:LLM_BASE_URL="https://api.deepseek.com/v1"
-$env:LLM_API_KEY="sk-xxxx"
-$env:LLM_MODEL="deepseek-chat"
-$env:GROUP_REPLY_MODE="keyword"
-$env:GROUP_KEYWORDS='["机器人","bot","小助手"]'
-```
-
-## 诊断（建议先跑一次）
-
-检查 NapCat HTTP/WS 是否能连上：
-
-```bash
+cp .env.example .env
 npm run doctor
-```
-
-## 启动
-
-开发模式：
-
-```bash
 npm run dev
 ```
 
-生产模式：
+## Configuration
 
-```bash
-npm run build
-npm start
-```
+Copy `.env.example` to `.env` and only change your own values.
 
-## 记忆与知识库
+### NapCat / QQ
 
-- 短期记忆：自动保存最近对话窗口（本地 `data/messages.jsonl`）
-- 长期记忆：用指令写入
-  - 私聊：`/记住 你的内容`
-  - 群聊：`@机器人 /记住 你的内容`
-- 知识库：把 `md/txt` 放到 `knowledge/`，然后运行
+- `NAPCAT_HTTP_URL` NapCat HTTP API base URL
+- `NAPCAT_WS_URL` NapCat WebSocket events URL
+- `NAPCAT_HTTP_TOKEN` / `NAPCAT_WS_TOKEN` optional tokens
+- `BOT_QQ_ID` optional (auto-detected from `self_id` if unset)
+- `BOT_NAME` bot nickname (default: `小助手`)
+
+### LLM
+
+- `LLM_BASE_URL` OpenAI-compatible gateway base URL
+- `LLM_API_KEY` API key
+- `LLM_MODEL` model name
+- `LLM_TEMPERATURE` sampling temperature (default: `0.3`)
+
+### Group Reply Modes
+
+- `GROUP_REPLY_MODE`:
+  - `mention` (default): reply when mentioned; also replies on nickname/keywords if configured
+  - `keyword`: reply when any keyword appears
+  - `all`: reply to all group messages
+- `GROUP_KEYWORDS` keywords array (JSON) or comma-separated list
+
+### Context Window
+
+- `MAX_SHORT_MEMORY_TURNS` short context window size (default: `20`)
+
+### System Prompt
+
+Choose one:
+
+- `SYSTEM_PROMPT_FILE=prompts/system.txt` (recommended)
+- `SYSTEM_PROMPT=...`
+
+### Vision (Optional)
+
+- `VISION_BASE_URL` OpenAI-compatible multimodal gateway
+- `VISION_API_KEY` key
+- `VISION_MODEL` multimodal model name (e.g. `qwen3-vl-plus`)
+
+## Memory & Knowledge Base
+
+- Short memory: stored in `data/messages.jsonl`
+- Long memory:
+  - Private chat: `/记住 your content`
+  - Group chat: `@bot /记住 your content`
+- Knowledge base:
 
 ```bash
 npm run ingest
 ```
 
-默认写入作用域 `global`，群/私聊都会检索到（你也可以扩展为群专属作用域）。
+## MCP (Optional External Tools)
 
-## MCP（外部工具，可选）
+This project uses `mcp.servers.json` to start/connect MCP servers. One server can expose multiple tools and the bot discovers them via `listTools`.
 
-项目使用 `mcp.servers.json` 来启动/连接 MCP Server（一个 server 进程可以提供多个工具）。启动时会对每个 server 执行 `listTools` 自动发现其工具列表，所以配置文件按“server 维度”组织是 MCP 的常见方式。
-
-示例：
+Example:
 
 ```json
 {
@@ -106,6 +106,16 @@ npm run ingest
 }
 ```
 
-- `enabled`: 是否启用该 server
-- `tools`: 可选，按工具名开关；不写则默认全部启用，写 `false` 可禁用单个工具
+- `enabled`: enable/disable a whole server
+- `tools`: optional per-tool toggles; omit to enable all; set `false` to disable a specific tool
+
+## Security Notes
+
+- Never commit `.env` or any real API keys. This repo ignores `.env` and `.env.*` by default and keeps `.env.example`.
+- If you accidentally pushed a key to GitHub, rotate it immediately and rewrite history if needed.
+- Local NapCat bundles (`NapCat.Shell.Windows.Node/`) and runtime data (`data/`) are ignored to avoid leaking tokens and chat logs.
+
+## Credits
+
+- NapCatQQ (OneBot / NTQQ protocol-side): https://github.com/NapNeko/NapCatQQ
 
