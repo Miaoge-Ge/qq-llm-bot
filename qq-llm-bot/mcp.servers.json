@@ -1,0 +1,17 @@
+{
+  "servers": [
+    {
+      "name": "local-time",
+      "command": "node",
+      "args": ["dist/mcp/servers/local-time.js"],
+      "enabled": false
+    },
+    {
+      "name": "my-tools",
+      "command": "node",
+      "args": ["dist/mcp/servers/my-tools.js"],
+      "enabled": true
+    }
+  ]
+}
+
