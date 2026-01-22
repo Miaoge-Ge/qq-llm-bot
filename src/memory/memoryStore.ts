@@ -57,7 +57,7 @@ export class MemoryStore {
 
   conversationId(chatType: ChatType, userId: string, groupId?: string): string {
     if (chatType === "private") return `private:${userId}`;
-    return `group:${groupId ?? "unknown"}`;
+    return `group_user:${groupId ?? "unknown"}:${userId}`;
   }
 
   scopeKeysFor(chatType: ChatType, userId: string, groupId?: string): string[] {

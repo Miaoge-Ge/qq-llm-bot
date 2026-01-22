@@ -26,4 +26,5 @@ NapCat.Shell.Windows.Node/
 
 # misc
 coverage/
+temp/
 

@@ -116,7 +116,8 @@ server.registerTool(
 );
 
 async function trySerperSearch(apiKey: string, query: string): Promise<string> {
-  const payload = { q: query, gl: "us", hl: "en", num: 5 };
+  const preferZh = /[\u4e00-\u9fff]/.test(query);
+  const payload = { q: query, gl: preferZh ? "cn" : "us", hl: preferZh ? "zh-cn" : "en", num: 5 };
   const res = await fetch("https://google.serper.dev/search", {
     method: "POST",
     headers: {
@@ -136,17 +137,20 @@ async function trySerperSearch(apiKey: string, query: string): Promise<string> {
 async function trySearch1Api(apiKey: string, query: string): Promise<string> {
   const host = env("SEARCH_API_HOST") ?? "api.search1api.com";
   const url = `https://${host}/search`;
-  const payload = {
+  const preferZh = /[\u4e00-\u9fff]/.test(query);
+  const payload: Record<string, unknown> = {
     query,
     search_service: "google",
     max_results: 5,
     crawl_results: 2,
     image: false,
-    include_sites: ["forbes.com", "technologyreview.com"],
-    exclude_sites: ["wikipedia.org"],
-    language: "en",
+    language: preferZh ? "zh" : "en",
     time_range: "month"
   };
+  if (!preferZh) {
+    payload.include_sites = ["forbes.com", "technologyreview.com"];
+    payload.exclude_sites = ["wikipedia.org"];
+  }
   const res = await fetch(url, {
     method: "POST",
     headers: {
