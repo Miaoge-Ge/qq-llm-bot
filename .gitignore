@@ -2,11 +2,19 @@
 **/.env.*
 !**/.env.example
 
+*.tsbuildinfo
+*.swp
+*.swo
+*~
+
 **/node_modules/
 **/dist/
 **/*.log
 **/logs/
 **/data/
+
+.vscode/
+.idea/
 
 .DS_Store
 Thumbs.db

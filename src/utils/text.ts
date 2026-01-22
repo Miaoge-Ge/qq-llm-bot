@@ -21,6 +21,14 @@ export function stripAtMentions(text: string): string {
   return text.replace(/@\d+/g, "").trim();
 }
 
+export function stripSpecificAtMentions(text: string, ids: string[]): string {
+  let out = String(text ?? "");
+  for (const id of ids.map((x) => String(x).trim()).filter(Boolean)) {
+    out = out.replaceAll(`@${id}`, "");
+  }
+  return out.replace(/\s+/g, " ").trim();
+}
+
 export function sanitizeChatText(text: string): string {
   let s = String(text ?? "");
   if (!s) return "";
@@ -95,4 +103,3 @@ function trimToNaturalEnding(text: string, minKeepChars: number): string {
   if (cut.length < minKeepChars) return t;
   return cut;
 }
-

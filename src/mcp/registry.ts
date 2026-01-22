@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { z } from "zod";
 import { logger } from "../logger.js";
-import { resolveFromCwd } from "../utils/fs.js";
+import { resolveFromProjectRoot } from "../utils/fs.js";
 
 export type McpTool = {
   server: string;
@@ -29,7 +29,7 @@ export class McpRegistry {
   private tools: McpTool[] = [];
 
   async connectAll(configPath = "mcp.servers.json"): Promise<void> {
-    const abs = resolveFromCwd(configPath);
+    const abs = resolveFromProjectRoot(configPath);
     if (!fs.existsSync(abs)) {
       logger.info({ configPath: abs }, "MCP config not found, skip");
       return;
@@ -40,7 +40,11 @@ export class McpRegistry {
     if (!parsed.success) throw new Error("MCP 配置文件格式错误");
 
     for (const s of parsed.data.servers.filter((x) => x.enabled)) {
-      await this.connectServer(s);
+      try {
+        await this.connectServer(s);
+      } catch (err) {
+        logger.error({ err, server: s.name }, "Failed to connect to MCP server");
+      }
     }
   }
 
@@ -55,7 +59,24 @@ export class McpRegistry {
     if (!enabled) throw new Error(`MCP tool not found or disabled: ${opts.server}::${opts.name}`);
     const res = await client.callTool({ name: opts.name, arguments: opts.arguments });
     const parts = (res as any)?.content as any[] | undefined;
-    const texts = (parts ?? []).map((p) => (p?.type === "text" ? String(p.text ?? "") : "")).filter(Boolean);
+    const texts = (parts ?? [])
+      .map((p) => {
+        if (!p || typeof p !== "object") return String(p ?? "");
+        if (p.type === "text") return String(p.text ?? "");
+        if (p.type === "json") {
+          try {
+            return JSON.stringify(p.json ?? null);
+          } catch {
+            return String(p.json ?? "");
+          }
+        }
+        try {
+          return JSON.stringify(p);
+        } catch {
+          return String(p);
+        }
+      })
+      .filter(Boolean);
     return texts.join("\n").trim();
   }
 
@@ -73,14 +94,16 @@ export class McpRegistry {
       description: typeof t.description === "string" ? t.description : undefined,
       inputSchema: t.inputSchema
     }));
-    const filtered = s.tools
-      ? mapped.filter((t) => {
-          const v = s.tools?.[t.name];
-          return v !== false;
-        })
-      : mapped;
+    const filtered = filterMcpTools(mapped, s.tools);
     this.tools.push(...filtered);
     logger.info({ server: s.name, toolCount: mapped.length }, "MCP server connected");
   }
 }
 
+export function filterMcpTools(tools: McpTool[], config: Record<string, boolean> | undefined): McpTool[] {
+  if (!config) return tools;
+  const values = Object.values(config);
+  const hasAllowList = values.some((v) => v === true);
+  if (hasAllowList) return tools.filter((t) => config[t.name] === true);
+  return tools.filter((t) => config[t.name] !== false);
+}

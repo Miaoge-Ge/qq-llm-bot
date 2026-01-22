@@ -2,16 +2,26 @@
 
 [中文说明](README.zh-CN.md)
 
-A minimal QQ bot skeleton built on NapCat (OneBot), powered by an OpenAI-compatible LLM. Includes short/long memory, lightweight RAG, optional vision, and MCP tools.
+A practical QQ bot built on NapCat (OneBot), powered by an OpenAI-compatible LLM. Includes optional vision and MCP tools, reminders, and daily usage stats.
 
 ## Features
 
 - NapCatQQ (OneBot) receive/send
 - Group routing modes: mention / keyword / all
-- Memory: short context window + long-term memory via command
-- RAG: local knowledge ingestion + retrieval
+- Group follow-up window after mention/keyword (keep replying for a few turns without re-mention)
+- Reminders: create/list/cancel reminders in private or group chat
 - Optional vision (multimodal) via OpenAI-compatible gateway
 - Optional MCP tools (external tool servers)
+- Daily per-user usage stats (tokens / calls / tool calls) saved to CSV
+
+## Project Layout
+
+- `src/` TypeScript source code
+- `dist/` Build output (`npm run build`)
+- `data/` Runtime data (notes, reminders, stats). Ignored by git.
+- `prompts/` System prompt files
+- `knowledge/` Knowledge examples / RAG resources
+- `.env` Local config (ignored by git) and `.env.example` template
 
 ## Requirements
 
@@ -36,6 +46,7 @@ Copy `.env.example` to `.env` and only change your own values.
 - `NAPCAT_HTTP_URL` NapCat HTTP API base URL
 - `NAPCAT_WS_URL` NapCat WebSocket events URL
 - `NAPCAT_HTTP_TOKEN` / `NAPCAT_WS_TOKEN` optional tokens
+  - If you do not set tokens in `.env`, the bot may auto-load them from local NapCat OneBot config (when available).
 - `BOT_QQ_ID` optional (auto-detected from `self_id` if unset)
 - `BOT_NAME` bot nickname (default: `小助手`)
 
@@ -46,6 +57,16 @@ Copy `.env.example` to `.env` and only change your own values.
 - `LLM_MODEL` model name
 - `LLM_TEMPERATURE` sampling temperature (default: `0.3`)
 
+## Scripts
+
+```bash
+npm run dev     # run bot in dev mode
+npm run doctor  # check NapCat HTTP/WS connectivity
+npm run build   # compile to dist/
+npm run start   # run dist/ output
+npm run test    # run tests
+```
+
 ### Group Reply Modes
 
 - `GROUP_REPLY_MODE`:
@@ -53,10 +74,19 @@ Copy `.env.example` to `.env` and only change your own values.
   - `keyword`: reply when any keyword appears
   - `all`: reply to all group messages
 - `GROUP_KEYWORDS` keywords array (JSON) or comma-separated list
+- `GROUP_FOLLOWUP_TURNS` number of follow-up messages to handle after a trigger (default: `4`)
+- `GROUP_FOLLOWUP_TTL_MS` follow-up window TTL in ms (default: `120000`)
 
-### Context Window
+### Usage Stats (Daily CSV)
 
-- `MAX_SHORT_MEMORY_TURNS` short context window size (default: `20`)
+- The bot records per-user daily usage statistics:
+  - LLM calls and tokens (prompt/completion/total) if the gateway returns `usage`
+  - Vision calls and tokens (prompt/completion/total) if the gateway returns `usage`
+  - Tool call counts (including MCP and builtin tools)
+- Files are written to:
+  - `STATS_DIR/YYYY-MM-DD.csv` (recommended) or `DATA_DIR/stats/YYYY-MM-DD.csv` by default
+- Query in chat:
+  - `token统计` / `今日统计` / `我的统计` / `今日用量` / `我的用量`
 
 ### System Prompt
 
@@ -71,18 +101,6 @@ Choose one:
 - `VISION_API_KEY` key
 - `VISION_MODEL` multimodal model name (e.g. `qwen3-vl-plus`)
 
-## Memory & Knowledge Base
-
-- Short memory: stored in `data/messages.jsonl`
-- Long memory:
-  - Private chat: `/记住 your content`
-  - Group chat: `@bot /记住 your content`
-- Knowledge base:
-
-```bash
-npm run ingest
-```
-
 ## MCP (Optional External Tools)
 
 This project uses `mcp.servers.json` to start/connect MCP servers. One server can expose multiple tools and the bot discovers them via `listTools`.
@@ -93,9 +111,9 @@ Example:
 {
   "servers": [
     {
-      "name": "my-tools",
+      "name": "tools",
       "command": "node",
-      "args": ["dist/mcp/servers/my-tools.js"],
+      "args": ["dist/mcp/servers/tools.js"],
       "enabled": true,
       "tools": {
         "weather_query": true,
@@ -107,7 +125,9 @@ Example:
 ```
 
 - `enabled`: enable/disable a whole server
-- `tools`: optional per-tool toggles; omit to enable all; set `false` to disable a specific tool
+- `tools`: optional. Two modes:
+  - Allowlist: if any value is `true`, only tools marked `true` are enabled
+  - Denylist: if there is no `true`, all tools are enabled by default; set `false` to disable a specific tool
 
 ## Security Notes
 
@@ -115,7 +135,11 @@ Example:
 - If you accidentally pushed a key to GitHub, rotate it immediately and rewrite history if needed.
 - Local NapCat bundles (`NapCat.Shell.Windows.Node/`) and runtime data (`data/`) are ignored to avoid leaking tokens and chat logs.
 
+## Troubleshooting
+
+- HTTP shows `403 token verify failed`: set `NAPCAT_HTTP_TOKEN` / `NAPCAT_ACCESS_TOKEN` correctly.
+- Bot receives messages but does not reply: check routing mode (`GROUP_REPLY_MODE`) and whether the message triggered mention/keyword logic.
+
 ## Credits
 
 - NapCatQQ (OneBot / NTQQ protocol-side): https://github.com/NapNeko/NapCatQQ
-

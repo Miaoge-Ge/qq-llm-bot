@@ -7,10 +7,11 @@
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "ingest": "tsx src/cli/ingest.ts",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "doctor": "tsx src/cli/doctor.ts",
     "mcp:test": "npm run build && node dist/cli/test-mcp.js",
-    "mcp:test:my-tools": "npm run build && node dist/cli/test-mcp-my-tools.js"
+    "mcp:test:my-tools": "npm run build && node dist/cli/test-mcp-my-tools.js",
+    "mcp:test:reminders": "npm run build && node dist/cli/test-mcp-reminders.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
@@ -27,4 +28,3 @@
     "typescript": "^5.6.3"
   }
 }
-

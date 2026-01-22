@@ -6,7 +6,20 @@ export type LlmRichMessage = {
   content: string | Array<Record<string, unknown>>;
 };
 
+export type LlmUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+};
+
+export type LlmTextResult = {
+  text: string;
+  model?: string;
+  usage?: LlmUsage;
+};
+
 const chatResponseSchema = z.object({
+  model: z.string().optional(),
   choices: z.array(
     z.object({
       message: z.object({
@@ -14,7 +27,14 @@ const chatResponseSchema = z.object({
         content: z.string().nullable()
       })
     })
-  )
+  ),
+  usage: z
+    .object({
+      prompt_tokens: z.number().int().nonnegative().optional(),
+      completion_tokens: z.number().int().nonnegative().optional(),
+      total_tokens: z.number().int().nonnegative().optional()
+    })
+    .optional()
 });
 
 const embeddingResponseSchema = z.object({
@@ -36,11 +56,11 @@ export class OpenAiCompatClient {
     return base.endsWith("/v1") ? base : `${base}/v1`;
   }
 
-  async chatCompletions(opts: {
+  async chatCompletionsWithUsage(opts: {
     model: string;
     temperature: number;
     messages: LlmMessage[];
-  }): Promise<string> {
+  }): Promise<LlmTextResult> {
     if (!this.apiKey) throw new Error("缺少 LLM_API_KEY");
     const url = `${this.v1Base()}/chat/completions`;
     const res = await fetch(url, {
@@ -59,14 +79,32 @@ export class OpenAiCompatClient {
     if (!res.ok) throw new Error(`LLM 调用失败: ${res.status} ${JSON.stringify(json)}`);
     const parsed = chatResponseSchema.safeParse(json);
     if (!parsed.success) throw new Error("LLM 返回结构不符合预期");
-    return parsed.data.choices[0]?.message.content ?? "";
+    const usageRaw = parsed.data.usage;
+    const usage =
+      usageRaw && Number.isFinite(Number(usageRaw.total_tokens))
+        ? {
+            promptTokens: Number(usageRaw.prompt_tokens ?? 0),
+            completionTokens: Number(usageRaw.completion_tokens ?? 0),
+            totalTokens: Number(usageRaw.total_tokens ?? 0)
+          }
+        : undefined;
+    return { text: parsed.data.choices[0]?.message.content ?? "", model: parsed.data.model, usage };
   }
 
-  async chatCompletionsRich(opts: {
+  async chatCompletions(opts: {
+    model: string;
+    temperature: number;
+    messages: LlmMessage[];
+  }): Promise<string> {
+    const r = await this.chatCompletionsWithUsage(opts);
+    return r.text;
+  }
+
+  async chatCompletionsRichWithUsage(opts: {
     model: string;
     temperature: number;
     messages: LlmRichMessage[];
-  }): Promise<string> {
+  }): Promise<LlmTextResult> {
     if (!this.apiKey) throw new Error("缺少 VISION_API_KEY");
     const url = `${this.v1Base()}/chat/completions`;
     const res = await fetch(url, {
@@ -85,7 +123,25 @@ export class OpenAiCompatClient {
     if (!res.ok) throw new Error(`VISION 调用失败: ${res.status} ${JSON.stringify(json)}`);
     const parsed = chatResponseSchema.safeParse(json);
     if (!parsed.success) throw new Error("VISION 返回结构不符合预期");
-    return parsed.data.choices[0]?.message.content ?? "";
+    const usageRaw = parsed.data.usage;
+    const usage =
+      usageRaw && Number.isFinite(Number(usageRaw.total_tokens))
+        ? {
+            promptTokens: Number(usageRaw.prompt_tokens ?? 0),
+            completionTokens: Number(usageRaw.completion_tokens ?? 0),
+            totalTokens: Number(usageRaw.total_tokens ?? 0)
+          }
+        : undefined;
+    return { text: parsed.data.choices[0]?.message.content ?? "", model: parsed.data.model, usage };
+  }
+
+  async chatCompletionsRich(opts: {
+    model: string;
+    temperature: number;
+    messages: LlmRichMessage[];
+  }): Promise<string> {
+    const r = await this.chatCompletionsRichWithUsage(opts);
+    return r.text;
   }
 
   async embed(opts: { model: string; input: string }): Promise<number[]> {
@@ -109,4 +165,3 @@ export class OpenAiCompatClient {
     return parsed.data.data[0]?.embedding ?? [];
   }
 }
-
