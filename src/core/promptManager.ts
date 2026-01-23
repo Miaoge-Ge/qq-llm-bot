@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AppConfig } from "../config.js";
-import { logger } from "../logger.js";
 import type { ChatEvent } from "../types.js";
 import { resolveFromProjectRoot } from "../utils/fs.js";
 
-type PromptMap = { groups: Record<string, string | string[]> };
+type PromptMap = { groups: Record<string, string> };
 
 function isSafeId(id: string): boolean {
   return /^[a-zA-Z0-9._-]{1,64}$/.test(id);
@@ -15,9 +14,9 @@ function normalizeMap(json: unknown): PromptMap {
   if (json && typeof json === "object" && !Array.isArray(json)) {
     const anyObj = json as any;
     if (anyObj.groups && typeof anyObj.groups === "object" && !Array.isArray(anyObj.groups)) {
-      return { groups: anyObj.groups as Record<string, string | string[]> };
+      return { groups: anyObj.groups as Record<string, string> };
     }
-    return { groups: anyObj as Record<string, string | string[]> };
+    return { groups: anyObj as Record<string, string> };
   }
   return { groups: {} };
 }
@@ -33,20 +32,10 @@ export class PromptManager {
   getPromptForEvent(evt: ChatEvent): string | undefined {
     if (evt.chatType !== "group" || !evt.groupId) return this.defaultPrompt();
     const map = this.loadMap();
-    const raw = map.groups[evt.groupId];
-    const ids = Array.isArray(raw) ? raw.map((x) => String(x ?? "").trim()).filter(Boolean) : [String(raw ?? "").trim()].filter(Boolean);
-    if (!ids.length) return this.defaultPrompt();
-
-    const groupParts: string[] = [];
-    for (const id of ids) {
-      const p = this.loadPromptById(id);
-      if (p) groupParts.push(p);
-      else logger.warn({ groupId: evt.groupId, promptId: id }, "Group prompt not found, fallback");
-    }
-    const groupPrompt = groupParts.join("\n\n").trim();
-    const base = this.defaultPrompt();
-    if (base && groupPrompt) return `${base}\n\n${groupPrompt}`.trim();
-    return (groupPrompt || base) ?? undefined;
+    const id = String(map.groups[evt.groupId] ?? "").trim();
+    if (!id) return this.defaultPrompt();
+    const prompt = this.loadPromptById(id);
+    return prompt ?? this.defaultPrompt();
   }
 
   private defaultPrompt(): string | undefined {
@@ -66,8 +55,7 @@ export class PromptManager {
       const value = normalizeMap(json);
       this.mapCache = { mtimeMs: st.mtimeMs, value };
       return value;
-    } catch (err) {
-      logger.warn({ err, abs }, "Failed to load group prompt map, fallback to empty");
+    } catch {
       this.mapCache = { mtimeMs: 0, value: { groups: {} } };
       return { groups: {} };
     }
@@ -94,3 +82,4 @@ export class PromptManager {
     }
   }
 }
+
