@@ -21,4 +21,15 @@ console.log("weather_query:", (weather as any)?.content?.[0]?.text);
 const search = await client.callTool({ name: "web_search", arguments: { query: "NapCatQQ OneBot" } });
 console.log("web_search:", (search as any)?.content?.[0]?.text);
 
+const imageSave = await client.callTool({
+  name: "image_save",
+  arguments: {
+    images: [
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/af3WQAAAABJRU5ErkJggg=="
+    ],
+    filename_prefix: "test"
+  }
+});
+console.log("image_save:", (imageSave as any)?.content?.[0]?.text);
+
 process.exit(0);

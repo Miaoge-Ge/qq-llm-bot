@@ -192,14 +192,19 @@ export class Orchestrator {
     }
 
     const imageDataUrls = (opts?.imageDataUrls ?? []).filter(Boolean).slice(0, 3);
+
+    const wantsSaveImage =
+      /(?:保存|收藏|存下|存图|收下)/.test(cleanedText) && /(?:图|图片|图像|照片)/.test(cleanedText);
+    if (wantsSaveImage && !imageDataUrls.length) {
+      return { target, text: "你把要保存的图片发出来（或回复那张图说“保存/收藏”），我就帮你存到收藏目录。" };
+    }
+
     if (imageDataUrls.length) {
       const userText = cleanedText.trim() || "请描述这张图片，并指出关键细节。";
-      const toolResult = await this.executeTool("tools::vision_describe", { images: imageDataUrls, prompt: userText }, { evt });
-      const answered = await this.presentToolResult(evt, {
-        toolName: "tools::vision_describe",
-        userText,
-        toolResult: toolResult || ""
-      });
+      const toolName = wantsSaveImage ? "tools::image_save" : "tools::vision_describe";
+      const toolArgs = wantsSaveImage ? { images: imageDataUrls } : { images: imageDataUrls, prompt: userText };
+      const toolResult = await this.executeTool(toolName, toolArgs, { evt });
+      const answered = await this.presentToolResult(evt, { toolName, userText, toolResult: toolResult || "" });
       const out = this.formatOutput(evt, answered || toolResult || "") || "我看到了图片，但没有识别出可用信息。";
       return { target, text: out };
     }
