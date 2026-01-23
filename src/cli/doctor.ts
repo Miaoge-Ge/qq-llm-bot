@@ -81,7 +81,6 @@ if (!ws.ok) {
 
 if (!http.ok && http.detail.includes("token verify failed")) {
   console.log("HTTP 显示 token verify failed，说明 NapCatQQ 的 HTTP Server 开了 token。");
-  console.log("请在 .env 里设置 NAPCAT_HTTP_TOKEN（或旧的 NAPCAT_ACCESS_TOKEN），并确保与 NapCatQQ 配置一致。");
+  console.log("请在 .env 里设置 NAPCAT_HTTP_TOKEN，并确保与 NapCatQQ 配置一致。");
   console.log("");
 }
-

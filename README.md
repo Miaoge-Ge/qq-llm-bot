@@ -2,7 +2,7 @@
 
 [中文说明](README.zh-CN.md)
 
-A practical QQ bot built on NapCat (OneBot), powered by an OpenAI-compatible LLM. Includes optional vision and MCP tools, reminders, and daily usage stats.
+A practical QQ bot built on NapCat (OneBot), powered by an OpenAI-compatible LLM. Includes MCP tools, reminders, and daily usage stats (vision is provided via MCP).
 
 ## Features
 
@@ -10,7 +10,6 @@ A practical QQ bot built on NapCat (OneBot), powered by an OpenAI-compatible LLM
 - Group routing modes: mention / keyword / all
 - Group follow-up window after mention/keyword (keep replying for a few turns without re-mention)
 - Reminders: create/list/cancel reminders in private or group chat
-- Optional vision (multimodal) via OpenAI-compatible gateway
 - Optional MCP tools (external tool servers)
 - Daily per-user usage stats (tokens / calls / tool calls) saved to CSV
 
@@ -81,7 +80,6 @@ npm run test    # run tests
 
 - The bot records per-user daily usage statistics:
   - LLM calls and tokens (prompt/completion/total) if the gateway returns `usage`
-  - Vision calls and tokens (prompt/completion/total) if the gateway returns `usage`
   - Tool call counts (including MCP and builtin tools)
 - Files are written to:
   - `STATS_DIR/YYYY-MM-DD.csv` (recommended) or `DATA_DIR/stats/YYYY-MM-DD.csv` by default
@@ -94,12 +92,6 @@ Choose one:
 
 - `SYSTEM_PROMPT_FILE=prompts/system.txt` (recommended)
 - `SYSTEM_PROMPT=...`
-
-### Vision (Optional)
-
-- `VISION_BASE_URL` OpenAI-compatible multimodal gateway
-- `VISION_API_KEY` key
-- `VISION_MODEL` multimodal model name (e.g. `qwen3-vl-plus`)
 
 ## MCP (Optional External Tools)
 
@@ -137,7 +129,7 @@ Example:
 
 ## Troubleshooting
 
-- HTTP shows `403 token verify failed`: set `NAPCAT_HTTP_TOKEN` / `NAPCAT_ACCESS_TOKEN` correctly.
+- HTTP shows `403 token verify failed`: set `NAPCAT_HTTP_TOKEN` correctly.
 - Bot receives messages but does not reply: check routing mode (`GROUP_REPLY_MODE`) and whether the message triggered mention/keyword logic.
 
 ## Credits

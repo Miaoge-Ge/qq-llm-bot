@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import dotenv from "dotenv";
 import { z } from "zod";
 import { logger } from "../logger.js";
 import { resolveFromProjectRoot } from "../utils/fs.js";
@@ -16,6 +17,9 @@ const serverConfigSchema = z.object({
   name: z.string().min(1),
   command: z.string().min(1),
   args: z.array(z.string()).default([]),
+  cwd: z.string().optional(),
+  envFile: z.string().optional(),
+  env: z.record(z.string()).optional(),
   enabled: z.boolean().default(true),
   tools: z.record(z.boolean()).optional()
 });
@@ -81,7 +85,15 @@ export class McpRegistry {
   }
 
   private async connectServer(s: z.infer<typeof serverConfigSchema>): Promise<void> {
-    const transport = new StdioClientTransport({ command: s.command, args: s.args });
+    const envFromFile = loadEnvFileOptional(s.envFile);
+    const mergedEnv = { ...(envFromFile ?? {}), ...(s.env ?? {}) };
+    const cwd = s.cwd ? resolveFromProjectRoot(s.cwd) : undefined;
+    const transport = new StdioClientTransport({
+      command: s.command,
+      args: s.args,
+      cwd,
+      env: Object.keys(mergedEnv).length ? mergedEnv : undefined
+    });
     const client = new Client({ name: "qq-llm-bot", version: "0.1.0" });
     await client.connect(transport);
 
@@ -97,6 +109,38 @@ export class McpRegistry {
     const filtered = filterMcpTools(mapped, s.tools);
     this.tools.push(...filtered);
     logger.info({ server: s.name, toolCount: mapped.length }, "MCP server connected");
+  }
+}
+
+function loadEnvFileOptional(envFile: string | undefined): Record<string, string> | null {
+  const p0 = String(envFile ?? "").trim();
+  if (!p0) return null;
+  const abs = resolveFromProjectRoot(p0);
+  try {
+    if (!fs.existsSync(abs)) {
+      logger.warn({ envFile: abs }, "MCP envFile not found, skip");
+      return null;
+    }
+    const raw = fs.readFileSync(abs, "utf8");
+    const parsed = dotenv.parse(raw);
+    const out: Record<string, string> = {};
+    const normalize = (val: string): string => {
+      const s0 = String(val ?? "").trim();
+      const m1 = s0.match(/^["']([\s\S]*)["']$/);
+      const s1 = (m1 ? m1[1] : s0).trim();
+      const m2 = s1.match(/^`([\s\S]*)`$/);
+      return (m2 ? m2[1] : s1).trim();
+    };
+    for (const [k, v] of Object.entries(parsed)) {
+      const key = String(k ?? "").trim();
+      if (!key) continue;
+      const value = normalize(String(v ?? ""));
+      if (value) out[key] = value;
+    }
+    return out;
+  } catch (err) {
+    logger.warn({ envFile: abs, err }, "Failed to load MCP envFile, skip");
+    return null;
   }
 }
 

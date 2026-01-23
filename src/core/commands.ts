@@ -1,7 +1,6 @@
 import type { ChatEvent, SendTarget } from "../types.js";
 import type { McpRegistry } from "../mcp/registry.js";
 import type { NoteStore } from "./noteStore.js";
-import { parseReminderRequests } from "../mcp/reminders/parser.js";
 import type { StatsStore } from "../stats/store.js";
 import { formatDateLocal } from "../stats/store.js";
 import { limitChatText, sanitizeChatText } from "../utils/text.js";
@@ -53,6 +52,21 @@ function parseReminderCancel(text: string): string | null {
 function isReminderCancelNoArg(text: string): boolean {
   const t = String(text ?? "").trim();
   return t === "取消提醒" || t === "删除提醒";
+}
+
+function looksLikeReminderCreateRequest(text: string): boolean {
+  const t = String(text ?? "").trim();
+  if (!t) return false;
+  if (!/提醒/.test(t)) return false;
+  if (["提醒帮助", "定时帮助", "定时提醒帮助"].includes(t)) return false;
+  if (/^(?:取消|删除)提醒\b/.test(t)) return false;
+  if (/(?:提醒列表|查看提醒|我的提醒|列出提醒)$/.test(t)) return false;
+
+  if (/(\d+|[零〇一二两三四五六七八九十]+)\s*(?:天|d|小时|h|分钟|分|min|m)\s*(?:后|以后|之后)/i.test(t)) return true;
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}\s+\d{1,2}(?:[:：]\d{1,2})/.test(t)) return true;
+  if (/(?:在\s*)?(?:今天|明天|后天|今晚)?\s*\d{1,2}(?:(?:[:：点])\d{1,2})?\s*(?:提醒|叫|通知|发|发送)/.test(t)) return true;
+  if (/(?:今天|明天|后天|今晚)\s*[^]{0,16}(?:\d{1,2}点半|\d{1,2}点|\d{1,2}[:：]\d{1,2})/.test(t)) return true;
+  return false;
 }
 
 function parseNewsQuery(text: string): string | null {
@@ -466,8 +480,7 @@ export async function handleCommands(opts: {
     }
   }
 
-  const remParsed = parseReminderRequests(text, nowMs);
-  if (remParsed && remParsed.length) {
+  if (looksLikeReminderCreateRequest(text)) {
     try {
       await opts.stats?.recordToolCall({ date: formatDateLocal(opts.evt.timestampMs || nowMs), chatType: opts.evt.chatType, userId: opts.evt.userId, groupId: opts.evt.groupId }, "tools::reminder_create");
       const replyText = await opts.mcp.callTool({

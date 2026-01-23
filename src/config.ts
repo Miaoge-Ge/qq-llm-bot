@@ -12,6 +12,16 @@ function normalizeSecret(v: unknown): unknown {
   return (m2 ? m2[1] : v1).trim();
 }
 
+function normalizeOptionalSecret(v: unknown): unknown {
+  const normalized = normalizeSecret(v);
+  if (typeof normalized !== "string") return normalized;
+  const s = normalized.trim();
+  if (!s) return undefined;
+  if (/^<YOUR_[A-Z0-9_]+>$/.test(s)) return undefined;
+  if (/^(sk|rk|pk)-x{3,}$/i.test(s)) return undefined;
+  return s;
+}
+
 function parseStringArray(v: unknown): string[] | undefined {
   if (Array.isArray(v)) return v.map((x) => String(x)).map((s) => s.trim()).filter(Boolean);
   if (typeof v !== "string") return undefined;
@@ -32,20 +42,15 @@ function parseStringArray(v: unknown): string[] | undefined {
 const envSchema = z.object({
   NAPCAT_HTTP_URL: z.string().url().default("http://127.0.0.1:3000"),
   NAPCAT_WS_URL: z.string().url().default("ws://127.0.0.1:3001"),
-  NAPCAT_ACCESS_TOKEN: z.preprocess(normalizeSecret, z.string().min(1)).optional(),
-  NAPCAT_HTTP_TOKEN: z.preprocess(normalizeSecret, z.string().min(1)).optional(),
-  NAPCAT_WS_TOKEN: z.preprocess(normalizeSecret, z.string().min(1)).optional(),
+  NAPCAT_HTTP_TOKEN: z.preprocess(normalizeOptionalSecret, z.string().min(1).optional()),
+  NAPCAT_WS_TOKEN: z.preprocess(normalizeOptionalSecret, z.string().min(1).optional()),
   BOT_QQ_ID: z.string().optional(),
   BOT_NAME: z.preprocess(normalizeSecret, z.string().min(1)).default("小助手"),
 
   LLM_BASE_URL: z.preprocess(normalizeSecret, z.string().url()).default("https://api.deepseek.com/v1"),
-  LLM_API_KEY: z.preprocess(normalizeSecret, z.string().min(1)).optional(),
+  LLM_API_KEY: z.preprocess(normalizeOptionalSecret, z.string().min(1).optional()),
   LLM_MODEL: z.string().default("deepseek-chat"),
   LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.3),
-
-  VISION_BASE_URL: z.preprocess(normalizeSecret, z.string().url()).default("https://dashscope.aliyuncs.com/compatible-mode/v1"),
-  VISION_API_KEY: z.preprocess(normalizeSecret, z.string().min(1)).optional(),
-  VISION_MODEL: z.preprocess(normalizeSecret, z.string().min(1)).default("qwen3-vl-plus"),
 
   SYSTEM_PROMPT: z.preprocess(normalizeSecret, z.string().min(1)).optional(),
   SYSTEM_PROMPT_FILE: z.preprocess(normalizeSecret, z.string().min(1)).optional(),
@@ -131,10 +136,6 @@ export function loadConfig(): AppConfig {
   const env = { ...process.env } as Record<string, unknown>;
   if (!env.GROUP_KEYWORDS && env.GROUP_KEYWORD) env.GROUP_KEYWORDS = env.GROUP_KEYWORD;
   if (!env.LLM_API_KEY && env.OPENAI_API_KEY) env.LLM_API_KEY = env.OPENAI_API_KEY;
-  if (env.NAPCAT_ACCESS_TOKEN) {
-    if (!env.NAPCAT_HTTP_TOKEN) env.NAPCAT_HTTP_TOKEN = env.NAPCAT_ACCESS_TOKEN;
-    if (!env.NAPCAT_WS_TOKEN) env.NAPCAT_WS_TOKEN = env.NAPCAT_ACCESS_TOKEN;
-  }
 
   const promptFile = normalizeSecret(env.SYSTEM_PROMPT_FILE) as string | undefined;
   const promptInline = normalizeSecret(env.SYSTEM_PROMPT) as string | undefined;

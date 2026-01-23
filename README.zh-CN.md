@@ -2,7 +2,7 @@
 
 [English README](README.md)
 
-一个实用的 QQ 机器人：基于 NapCatQQ（OneBot），使用 OpenAI 兼容网关的大模型。包含可选识图（多模态）与 MCP 外部工具、定时提醒、每日用量统计等功能。
+一个实用的 QQ 机器人：基于 NapCatQQ（OneBot），使用 OpenAI 兼容网关的大模型。包含 MCP 外部工具、定时提醒、每日用量统计等功能（识图作为 MCP 工具提供）。
 
 ## 功能
 
@@ -10,7 +10,6 @@
 - 群聊触发方式：@ / 关键词 / 全量
 - 群聊跟进窗口：被 @ 或命中关键词后，可连续回复若干句（无需每句都 @）
 - 定时提醒：支持群聊/私聊创建、查看、取消
-- 可选识图（OpenAI 兼容多模态网关）
 - 可选 MCP 工具（外部工具 server）
 - 每日用量统计：按人统计 tokens/次数/工具调用次数，并落盘为 CSV
 
@@ -81,7 +80,6 @@ npm run test    # 运行测试
 
 - 机器人会按人、按天记录用量统计：
   - LLM 调用次数与 tokens（prompt/completion/total；前提是网关返回 `usage`）
-  - 识图调用次数与 tokens（prompt/completion/total；前提是网关返回 `usage`）
   - 工具调用次数（包含 MCP 与内置工具）
 - 文件保存位置：
   - 推荐：`STATS_DIR/YYYY-MM-DD.csv`；默认：`DATA_DIR/stats/YYYY-MM-DD.csv`
@@ -94,12 +92,6 @@ npm run test    # 运行测试
 
 - `SYSTEM_PROMPT_FILE=prompts/system.txt`（推荐）
 - `SYSTEM_PROMPT=...`
-
-### 识图（可选）
-
-- `VISION_BASE_URL` OpenAI 兼容多模态网关
-- `VISION_API_KEY` key
-- `VISION_MODEL` 多模态模型名（例如 `qwen3-vl-plus`）
 
 ## MCP（可选外部工具）
 
@@ -138,7 +130,7 @@ npm run test    # 运行测试
 
 ## 排障
 
-- HTTP 报 `403 token verify failed`：检查 `NAPCAT_HTTP_TOKEN` / `NAPCAT_ACCESS_TOKEN` 是否正确。
+- HTTP 报 `403 token verify failed`：检查 `NAPCAT_HTTP_TOKEN` 是否正确。
 - 能收到消息但不回复：检查 `GROUP_REPLY_MODE` 以及消息是否满足 @/关键词触发规则。
 
 ## 致谢

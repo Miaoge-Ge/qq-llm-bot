@@ -16,13 +16,12 @@ import { PromptManager } from "./core/promptManager.js";
 const config = loadConfig();
 
 const llm = new OpenAiCompatClient(config.LLM_BASE_URL, config.LLM_API_KEY);
-const vision = new OpenAiCompatClient(config.VISION_BASE_URL, config.VISION_API_KEY);
 const mcp = new McpRegistry();
 await mcp.connectAll();
 
 const stats = new StatsStore(config);
 const prompts = new PromptManager(config);
-const orchestrator = new Orchestrator(config, llm, vision, mcp, stats, prompts);
+const orchestrator = new Orchestrator(config, llm, mcp, stats, prompts);
 const napcat = new NapCatClient(config);
 const notes = new NoteStore(config);
 const sessions = new GroupConversationWindow(config);

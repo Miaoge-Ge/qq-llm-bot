@@ -2,8 +2,10 @@
   "servers": [
     {
       "name": "tools",
-      "command": "node",
-      "args": ["dist/mcp/servers/tools.js"],
+      "command": "python3",
+      "args": ["server.py"],
+      "cwd": "../mcp_tools",
+      "envFile": "../mcp_tools/.env",
       "enabled": true
     }
   ]
