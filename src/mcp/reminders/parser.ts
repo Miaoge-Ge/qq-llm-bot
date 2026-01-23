@@ -117,21 +117,23 @@ function parseDelayReminder(text: string, nowMs: number): { dueAtMs: number; mes
   const t = stripMentions(text);
 
   const r1 = t.match(
-    /^(?:(?:提醒|叫|通知|发|发送)(?:我|你)?\s*)?(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:小时|h))?\s*(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:分钟|分|min|m))?\s*后\s*(?:(?:提醒|叫|通知|发|发送)(?:我|你)?\s*)?(.+)$/i
+    /^(?:(?:提醒|叫|通知|发|发送)(?:我|你)?\s*)?(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:天|d))?\s*(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:小时|h))?\s*(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:分钟|分|min|m))?\s*(?:后|以后|之后)\s*(?:(?:提醒|叫|通知|发|发送)(?:我|你)?\s*)?(.+)$/i
   );
   const r2 = t.match(
-    /^(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:小时|h))?\s*(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:分钟|分|min|m))?\s*后\s*(?:提醒|叫|通知|发|发送)(?:我|你)?\s*(.+)$/i
+    /^(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:天|d))?\s*(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:小时|h))?\s*(?:(\d+|[零〇一二两三四五六七八九十]+)\s*(?:分钟|分|min|m))?\s*(?:后|以后|之后)\s*(?:提醒|叫|通知|发|发送)(?:我|你)?\s*(.+)$/i
   );
   const m = r1 ?? r2;
   if (!m) return null;
 
-  const hoursRaw = (m[1] ?? "").trim();
-  const minsRaw = (m[2] ?? "").trim();
+  const daysRaw = (m[1] ?? "").trim();
+  const hoursRaw = (m[2] ?? "").trim();
+  const minsRaw = (m[3] ?? "").trim();
+  const days = daysRaw ? clampInt(parseCnNumber(daysRaw) ?? NaN, 0, 365) : 0;
   const hours = hoursRaw ? clampInt(parseCnNumber(hoursRaw) ?? NaN, 0, 168) : 0;
   const mins = minsRaw ? clampInt(parseCnNumber(minsRaw) ?? NaN, 0, 10080) : 0;
-  if (!hours && !mins) return null;
-  const delayMs = (hours * 60 + mins) * 60_000;
-  const msg = stripMentions(m[3] ?? "");
+  if (!days && !hours && !mins) return null;
+  const delayMs = (days * 24 * 60 + hours * 60 + mins) * 60_000;
+  const msg = stripMentions(m[4] ?? "");
   if (!msg) return null;
   return { dueAtMs: nowMs + delayMs, message: msg };
 }

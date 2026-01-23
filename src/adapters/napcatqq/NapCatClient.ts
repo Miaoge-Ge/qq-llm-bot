@@ -66,6 +66,66 @@ export class NapCatClient {
     return out;
   }
 
+  async getForwardTextFromSegments(segments: { type: string; data: Record<string, unknown> }[]): Promise<string | null> {
+    const ids = extractForwardIds(segments);
+    if (!ids.length) return null;
+    const chunks: string[] = [];
+    for (const id of ids.slice(0, 2)) {
+      const text = await this.getForwardMessageText(id);
+      if (text) chunks.push(text);
+    }
+    const joined = chunks.filter(Boolean).join("\n\n").trim();
+    return joined || null;
+  }
+
+  async getForwardMessageText(forwardId: string): Promise<string | null> {
+    const id = String(forwardId ?? "").trim();
+    if (!id) return null;
+    try {
+      let res: any;
+      try {
+        res = await this.callApi("get_forward_msg", { id });
+      } catch {
+        res = await this.callApi("get_forward_msg", { message_id: id });
+      }
+      const data = res?.data ?? res;
+      const rawMessages = (data?.messages ?? data?.message ?? data?.data ?? []) as any;
+      const list = Array.isArray(rawMessages) ? rawMessages : [];
+      if (!list.length) return null;
+
+      const lines: string[] = [];
+      for (const node of list) {
+        const sender = node?.sender ?? {};
+        const name = String(sender?.card ?? sender?.nickname ?? node?.nickname ?? node?.user_name ?? node?.user_id ?? "").trim();
+        const content = node?.content ?? node?.message ?? node?.data?.content ?? node?.data?.message ?? node?.data ?? node;
+        const segs = normalizeSegments(content);
+        const text = segmentsToText(segs);
+        const line = `${name || "群友"}：${text || ""}`.trim();
+        if (line && line !== "群友：") lines.push(line);
+        if (lines.length >= 20) break;
+      }
+      const out = lines.join("\n").trim();
+      if (!out) return null;
+      return out.length > 1800 ? out.slice(0, 1800).trimEnd() : out;
+    } catch {
+      return null;
+    }
+  }
+
+  async getGroupMemberInfo(groupId: string, userId: string): Promise<Record<string, unknown> | null> {
+    const g = String(groupId ?? "").trim();
+    const u = String(userId ?? "").trim();
+    if (!g || !u) return null;
+    try {
+      const res: any = await this.callApi("get_group_member_info", { group_id: g, user_id: u });
+      const data = res?.data ?? res;
+      if (!data || typeof data !== "object") return null;
+      return data as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
   private async fetchImageToDataUrl(urlOrFile?: string): Promise<string | null> {
     if (!urlOrFile) return null;
     let finalUrl = urlOrFile;
@@ -201,3 +261,14 @@ function guessImageMime(url: string): string {
   return "image/jpeg";
 }
 
+function extractForwardIds(segments: { type: string; data: Record<string, unknown> }[]): string[] {
+  const out: string[] = [];
+  for (const s of segments ?? []) {
+    const t = String((s as any)?.type ?? "");
+    if (t !== "forward") continue;
+    const d = (s as any)?.data ?? {};
+    const id = typeof d.id === "string" ? d.id : typeof d.res_id === "string" ? d.res_id : typeof d.message_id === "string" ? d.message_id : "";
+    if (id) out.push(String(id));
+  }
+  return out;
+}

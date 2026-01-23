@@ -7,6 +7,7 @@ import { parseToolCallFromText } from "../utils/toolCall.js";
 import { limitChatText, sanitizeChatText } from "../utils/text.js";
 import { formatDateLocal } from "../stats/store.js";
 import type { TokenUsage } from "../stats/types.js";
+import type { PromptManager } from "./promptManager.js";
 
 type StatsScope = { date: string; chatType: "private" | "group"; userId: string; groupId?: string };
 type StatsSink = {
@@ -150,7 +151,8 @@ export class Orchestrator {
     private readonly llm: OpenAiCompatClient,
     private readonly vision: OpenAiCompatClient,
     mcp: McpRegistry,
-    private readonly stats?: StatsSink
+    private readonly stats?: StatsSink,
+    private readonly promptManager?: PromptManager
   ) {
     this.tools = new ToolManager(config, mcp);
   }
@@ -239,7 +241,8 @@ export class Orchestrator {
       "不要编造事实；如果需要外部信息就用工具或说明无法确定。"
     ];
 
-    if (this.config.SYSTEM_PROMPT?.trim()) systemParts.push(this.config.SYSTEM_PROMPT.trim());
+    const selectedPrompt = this.promptManager?.getPromptForEvent(evt) ?? this.config.SYSTEM_PROMPT?.trim() ?? "";
+    if (selectedPrompt) systemParts.push(selectedPrompt);
 
     const preferEnglish = detectPreferEnglish(cleanedText);
     systemParts.push(

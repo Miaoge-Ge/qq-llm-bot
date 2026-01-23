@@ -31,20 +31,13 @@ export function routeEvent(
   const nameKeyword = (config.BOT_NAME ?? "").trim();
   const allKeywords = [nameKeyword, ...keywords].filter(Boolean);
   const matchedKeyword = allKeywords.find((k) => text.includes(k));
-  const nowMs = evt.timestampMs || Date.now();
 
   if (mode === "all") {
     return { kind: "handle", target: { chatType: "group", groupId: evt.groupId! }, cleanedText: text };
   }
 
   if (mode === "keyword") {
-    if (isDirectToolCall || matchedKeyword) sessions?.start(evt, nowMs);
-    if (!isDirectToolCall && !matchedKeyword) {
-      if (sessions?.shouldHandleFollowup(evt, text, nowMs)) {
-        return { kind: "handle", target: { chatType: "group", groupId: evt.groupId! }, cleanedText: text };
-      }
-      return { kind: "ignore", reason: "no_keyword" };
-    }
+    if (!isDirectToolCall && !matchedKeyword) return { kind: "ignore", reason: "no_keyword" };
     return {
       kind: "handle",
       target: { chatType: "group", groupId: evt.groupId! },
@@ -53,7 +46,6 @@ export function routeEvent(
   }
 
   if (isDirectToolCall) {
-    sessions?.start(evt, nowMs);
     return { kind: "handle", target: { chatType: "group", groupId: evt.groupId! }, cleanedText: text };
   }
 
@@ -63,12 +55,8 @@ export function routeEvent(
 
   if (!isMentioned) {
     if (!matchedKeyword) {
-      if (sessions?.shouldHandleFollowup(evt, text, nowMs)) {
-        return { kind: "handle", target: { chatType: "group", groupId: evt.groupId! }, cleanedText: text };
-      }
       return { kind: "ignore", reason: "not_mentioned" };
     }
-    sessions?.start(evt, nowMs);
     return {
       kind: "handle",
       target: { chatType: "group", groupId: evt.groupId! },
@@ -76,7 +64,6 @@ export function routeEvent(
     };
   }
 
-  sessions?.start(evt, nowMs);
   return {
     kind: "handle",
     target: { chatType: "group", groupId: evt.groupId! },

@@ -11,6 +11,7 @@ import { NoteStore } from "./core/noteStore.js";
 import { handleCommands } from "./core/commands.js";
 import { StatsStore } from "./stats/store.js";
 import { GroupConversationWindow } from "./core/sessionWindow.js";
+import { PromptManager } from "./core/promptManager.js";
 
 const config = loadConfig();
 
@@ -20,7 +21,8 @@ const mcp = new McpRegistry();
 await mcp.connectAll();
 
 const stats = new StatsStore(config);
-const orchestrator = new Orchestrator(config, llm, vision, mcp, stats);
+const prompts = new PromptManager(config);
+const orchestrator = new Orchestrator(config, llm, vision, mcp, stats, prompts);
 const napcat = new NapCatClient(config);
 const notes = new NoteStore(config);
 const sessions = new GroupConversationWindow(config);
@@ -51,7 +53,8 @@ napcat.connect(async (evt) => {
       text: decision.cleanedText,
       mcp,
       notes,
-      stats
+      stats,
+      napcat
     });
     if (cmd.handled) {
       const out = { target: decision.target, text: cmd.replyText };
@@ -62,20 +65,35 @@ napcat.connect(async (evt) => {
 
     let repliedText: string | null = null;
     let repliedImageDataUrls: string[] = [];
+    let repliedForwardText: string | null = null;
     if (evt.replyToMessageId) {
       const ctx = await napcat.getMessageContext(evt.replyToMessageId);
       repliedText = ctx?.text ?? null;
-      if (ctx?.segments?.length) repliedImageDataUrls = await napcat.getImageDataUrls(ctx.segments);
+      if (ctx?.segments?.length) {
+        repliedImageDataUrls = await napcat.getImageDataUrls(ctx.segments);
+        repliedForwardText = await napcat.getForwardTextFromSegments(ctx.segments);
+      }
     }
 
+    const inboundForwardText = await napcat.getForwardTextFromSegments(evt.segments);
     const inboundImageDataUrls = await napcat.getImageDataUrls(evt.segments);
     const imageDataUrls = [...inboundImageDataUrls, ...repliedImageDataUrls].filter(Boolean).slice(0, 3);
 
     let effectiveText = decision.cleanedText;
+    if (inboundForwardText) {
+      effectiveText = effectiveText
+        ? `转发聊天记录：\n${inboundForwardText}\n\n用户补充：\n${effectiveText}`
+        : `转发聊天记录：\n${inboundForwardText}`;
+    }
     if (repliedText) {
       effectiveText = effectiveText
         ? `用户回复了这条消息：\n${repliedText}\n\n用户补充：\n${effectiveText}`
         : `用户回复了这条消息：\n${repliedText}`;
+    }
+    if (repliedForwardText) {
+      effectiveText = effectiveText
+        ? `被回复消息包含转发聊天记录：\n${repliedForwardText}\n\n用户补充：\n${effectiveText}`
+        : `被回复消息包含转发聊天记录：\n${repliedForwardText}`;
     }
 
     const reply = await orchestrator.handle(evt, decision.target, effectiveText, { imageDataUrls });
