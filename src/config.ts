@@ -22,6 +22,22 @@ function normalizeOptionalSecret(v: unknown): unknown {
   return s;
 }
 
+function readSystemPromptFile(absPath: string): string {
+  const raw = fs.readFileSync(absPath, "utf8");
+  if (!absPath.toLowerCase().endsWith(".json")) return raw;
+  try {
+    const parsed = JSON.parse(raw) as any;
+    const pick = (obj: any): unknown =>
+      obj?.systemPrompt ?? obj?.system_prompt ?? obj?.system ?? obj?.prompt ?? obj?.content ?? obj?.text ?? obj?.value ?? obj?.parts;
+    const chosen = pick(parsed);
+    if (typeof chosen === "string") return chosen;
+    if (Array.isArray(chosen) && chosen.every((x) => typeof x === "string")) return chosen.join("\n");
+    return JSON.stringify(parsed, null, 2);
+  } catch {
+    return raw;
+  }
+}
+
 function parseStringArray(v: unknown): string[] | undefined {
   if (Array.isArray(v)) return v.map((x) => String(x)).map((s) => s.trim()).filter(Boolean);
   if (typeof v !== "string") return undefined;
@@ -148,7 +164,7 @@ export function loadConfig(): AppConfig {
   if (promptFile && !promptInline) {
     const abs = resolveFromProjectRoot(promptFile);
     try {
-      env.SYSTEM_PROMPT = fs.readFileSync(abs, "utf8");
+      env.SYSTEM_PROMPT = readSystemPromptFile(abs);
     } catch {
       throw new Error(`配置错误:\nSYSTEM_PROMPT_FILE: 无法读取文件 ${abs}`);
     }

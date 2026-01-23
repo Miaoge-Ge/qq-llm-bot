@@ -2,10 +2,10 @@
   "servers": [
     {
       "name": "tools",
-      "command": "python3",
-      "args": ["server.py"],
-      "cwd": "../mcp_tools",
-      "envFile": "../mcp_tools/.env",
+      "command": "/opt/MCP/.venv/bin/python",
+      "args": ["/opt/MCP/server.py"],
+      "cwd": "/opt/MCP",
+      "envFile": "/opt/MCP/.env",
       "enabled": true
     }
   ]
