@@ -63,6 +63,13 @@ const envSchema = z.object({
   GROUP_FOLLOWUP_TURNS: z.coerce.number().int().min(0).max(20).default(0),
   GROUP_FOLLOWUP_TTL_MS: z.coerce.number().int().min(0).max(3_600_000).default(120000),
 
+  GROUP_CONTEXT_TURNS: z.coerce.number().int().min(0).max(40).default(4),
+  GROUP_CONTEXT_TTL_MS: z.coerce.number().int().min(0).max(3_600_000).default(300000),
+  GROUP_CONTEXT_MAX_CHARS: z.coerce.number().int().min(40).max(1000).default(240),
+  PRIVATE_CONTEXT_TURNS: z.coerce.number().int().min(0).max(80).default(10),
+  PRIVATE_CONTEXT_TTL_MS: z.coerce.number().int().min(0).max(86_400_000).default(3600000),
+  PRIVATE_CONTEXT_MAX_CHARS: z.coerce.number().int().min(80).max(3000).default(800),
+
   TOOL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000)
 });
 

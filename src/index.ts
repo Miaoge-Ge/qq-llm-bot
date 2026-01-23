@@ -11,6 +11,7 @@ import { NoteStore } from "./core/noteStore.js";
 import { handleCommands } from "./core/commands.js";
 import { StatsStore } from "./stats/store.js";
 import { GroupConversationWindow } from "./core/sessionWindow.js";
+import { ConversationMemory } from "./core/conversationMemory.js";
 
 const config = loadConfig();
 
@@ -19,7 +20,8 @@ const mcp = new McpRegistry();
 await mcp.connectAll();
 
 const stats = new StatsStore(config);
-const orchestrator = new Orchestrator(config, llm, mcp, stats);
+const memory = new ConversationMemory(config);
+const orchestrator = new Orchestrator(config, llm, mcp, stats, memory);
 const napcat = new NapCatClient(config);
 const notes = new NoteStore(config);
 const sessions = new GroupConversationWindow(config);
@@ -54,8 +56,11 @@ napcat.connect(async (evt) => {
       napcat
     });
     if (cmd.handled) {
-      const out = { target: decision.target, text: cmd.replyText };
+      const rewritten = await orchestrator.rewrite(evt, cmd.replyText);
+      const out = { target: decision.target, text: rewritten || cmd.replyText };
       await napcat.send(out);
+      memory.addUser(evt, decision.cleanedText, evt.timestampMs || Date.now());
+      memory.addAssistant(evt, out.text, Date.now());
       printOutbound(out.target, out.text);
       return;
     }
@@ -95,6 +100,8 @@ napcat.connect(async (evt) => {
 
     const reply = await orchestrator.handle(evt, decision.target, effectiveText, { imageDataUrls });
     await napcat.send(reply);
+    memory.addUser(evt, effectiveText, evt.timestampMs || Date.now());
+    memory.addAssistant(evt, reply.text, Date.now());
     printOutbound(reply.target, reply.text);
   } catch (err) {
     printError("handle/send", err);

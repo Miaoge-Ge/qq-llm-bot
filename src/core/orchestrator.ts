@@ -7,6 +7,7 @@ import { parseToolCallFromText } from "../utils/toolCall.js";
 import { limitChatText, sanitizeChatText } from "../utils/text.js";
 import { formatDateLocal } from "../stats/store.js";
 import type { TokenUsage } from "../stats/types.js";
+import type { ConversationMemory } from "./conversationMemory.js";
 
 type StatsScope = { date: string; chatType: "private" | "group"; userId: string; groupId?: string };
 type StatsSink = {
@@ -17,6 +18,33 @@ type StatsSink = {
 
 export class Orchestrator {
   private readonly tools: ToolManager;
+
+  async rewrite(evt: ChatEvent, text: string): Promise<string> {
+    const raw = String(text ?? "").trim();
+    if (!raw) return "";
+    if (!this.config.LLM_API_KEY) return raw;
+
+    const sys =
+      evt.chatType === "group"
+        ? `你是 QQ 群聊助手的“回复润色器”。把给用户的文本润色成更像群里聊天的口吻。\n要求：\n- 保持事实不变：不要改数字、时间、ID、链接、列表顺序。\n- 简短直接，不要客套，不要长篇解释。\n- 不要输出 Markdown，不要输出 JSON，不要输出代码块。\n- 不要输出“我来为你总结/以下是”等模板话。`
+        : `你是 QQ 私聊助手的“回复润色器”。把给用户的文本润色成更自然的聊天回复。\n要求：\n- 保持事实不变：不要改数字、时间、ID、链接、列表顺序。\n- 语气自然直接，避免官腔和模板化。\n- 不要输出 Markdown，不要输出 JSON，不要输出代码块。`;
+
+    try {
+      const r = await this.llm.chatCompletionsWithUsage({
+        model: this.config.LLM_MODEL,
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: sys },
+          { role: "user", content: raw }
+        ]
+      });
+      await this.stats?.recordLlm(toStatsScope(evt), r.usage);
+      const out = r.text.trim();
+      if (out && !parseOneLineJson(out)) return out;
+    } catch {
+    }
+    return raw;
+  }
 
   private async presentToolResult(evt: ChatEvent, opts: { toolName: string; userText: string; toolResult: string }): Promise<string> {
     const raw = String(opts.toolResult ?? "").trim();
@@ -171,7 +199,8 @@ export class Orchestrator {
     private readonly config: AppConfig,
     private readonly llm: OpenAiCompatClient,
     mcp: McpRegistry,
-    private readonly stats?: StatsSink
+    private readonly stats?: StatsSink,
+    private readonly memory?: ConversationMemory
   ) {
     this.tools = new ToolManager(config, mcp);
   }
@@ -186,7 +215,8 @@ export class Orchestrator {
     if (directToolCall) {
       const toolResult = await this.executeTool(directToolCall.tool, directToolCall.arguments ?? {}, { evt });
       const out = await this.presentToolResult(evt, { toolName: directToolCall.tool, userText: "", toolResult: toolResult || "" });
-      return { target, text: out || "工具无输出" };
+      const finalText = await this.rewrite(evt, out || "工具没有返回可用内容。");
+      return { target, text: finalText || out || "工具没有返回可用内容。" };
     }
 
     const imageDataUrls = (opts?.imageDataUrls ?? []).filter(Boolean).slice(0, 3);
@@ -194,7 +224,8 @@ export class Orchestrator {
     const wantsSaveImage =
       /(?:保存|收藏|存下|存图|收下)/.test(cleanedText) && /(?:图|图片|图像|照片)/.test(cleanedText);
     if (wantsSaveImage && !imageDataUrls.length) {
-      return { target, text: "你把要保存的图片发出来（或回复那张图说“保存/收藏”），我就帮你存到收藏目录。" };
+      const tip = await this.rewrite(evt, "你把要保存的图片发出来，或者回复那张图说“保存/收藏”，我就帮你存到收藏目录。");
+      return { target, text: tip || "你把要保存的图片发出来，或者回复那张图说“保存/收藏”，我就帮你存到收藏目录。" };
     }
 
     if (imageDataUrls.length) {
@@ -254,6 +285,10 @@ export class Orchestrator {
     }
 
     const messages: LlmMessage[] = [{ role: "system", content: systemParts.join("\n\n") }];
+    const history = this.memory?.getHistory(evt, Date.now()) ?? [];
+    for (const m of history) {
+      messages.push({ role: m.role, content: m.content });
+    }
     messages.push({ role: "user", content: cleanedText });
 
     const firstRes = await this.llm.chatCompletionsWithUsage({
