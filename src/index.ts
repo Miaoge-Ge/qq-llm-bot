@@ -11,7 +11,6 @@ import { NoteStore } from "./core/noteStore.js";
 import { handleCommands } from "./core/commands.js";
 import { StatsStore } from "./stats/store.js";
 import { GroupConversationWindow } from "./core/sessionWindow.js";
-import { PromptManager } from "./core/promptManager.js";
 
 const config = loadConfig();
 
@@ -20,8 +19,7 @@ const mcp = new McpRegistry();
 await mcp.connectAll();
 
 const stats = new StatsStore(config);
-const prompts = new PromptManager(config);
-const orchestrator = new Orchestrator(config, llm, mcp, stats, prompts);
+const orchestrator = new Orchestrator(config, llm, mcp, stats);
 const napcat = new NapCatClient(config);
 const notes = new NoteStore(config);
 const sessions = new GroupConversationWindow(config);

@@ -62,7 +62,6 @@ const envSchema = z.object({
   GROUP_KEYWORDS: z.preprocess(parseStringArray, z.array(z.string()).default(["机器人"])),
   GROUP_FOLLOWUP_TURNS: z.coerce.number().int().min(0).max(20).default(0),
   GROUP_FOLLOWUP_TTL_MS: z.coerce.number().int().min(0).max(3_600_000).default(120000),
-  GROUP_PROMPT_MAP_FILE: z.preprocess(normalizeSecret, z.string().min(1)).default("prompts/group-prompts.json"),
 
   TOOL_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000)
 });
