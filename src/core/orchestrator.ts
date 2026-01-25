@@ -209,7 +209,7 @@ export class Orchestrator {
     evt: ChatEvent,
     target: SendMessage["target"],
     cleanedText: string,
-    opts?: { imageDataUrls?: string[] }
+    opts?: { imageDataUrls?: string[]; fileInputs?: string[] }
   ): Promise<SendMessage> {
     const directToolCall = parseToolCallFromText(cleanedText);
     if (directToolCall) {
@@ -220,18 +220,27 @@ export class Orchestrator {
     }
 
     const imageDataUrls = (opts?.imageDataUrls ?? []).filter(Boolean).slice(0, 3);
+    const fileInputs = (opts?.fileInputs ?? []).filter(Boolean).slice(0, 10);
 
-    const wantsSaveImage =
-      /(?:保存|收藏|存下|存图|收下)/.test(cleanedText) && /(?:图|图片|图像|照片)/.test(cleanedText);
-    if (wantsSaveImage && !imageDataUrls.length) {
-      const tip = await this.rewrite(evt, "你把要保存的图片发出来，或者回复那张图说“保存/收藏”，我就帮你存到收藏目录。");
-      return { target, text: tip || "你把要保存的图片发出来，或者回复那张图说“保存/收藏”，我就帮你存到收藏目录。" };
+    const wantsSaveFile = /(?:保存|收藏|存下|存一下|收下)/.test(cleanedText);
+    if (wantsSaveFile && !fileInputs.length) {
+      const tip = await this.rewrite(evt, "你把要保存的图片/视频/文件发出来，或者回复那条消息说“保存/收藏”，我就帮你存到目录。");
+      return { target, text: tip || "你把要保存的图片/视频/文件发出来，或者回复那条消息说“保存/收藏”，我就帮你存到目录。" };
+    }
+
+    if (wantsSaveFile && fileInputs.length) {
+      const toolName = "tools::file_save";
+      const toolArgs = { files: fileInputs };
+      const toolResult = await this.executeTool(toolName, toolArgs, { evt });
+      const answered = await this.presentToolResult(evt, { toolName, userText: cleanedText.trim(), toolResult: toolResult || "" });
+      const out = this.formatOutput(evt, answered || toolResult || "") || "文件已保存，但没有返回可用信息。";
+      return { target, text: out };
     }
 
     if (imageDataUrls.length) {
       const userText = cleanedText.trim() || "请描述这张图片，并指出关键细节。";
-      const toolName = wantsSaveImage ? "tools::image_save" : "tools::vision_describe";
-      const toolArgs = wantsSaveImage ? { images: imageDataUrls } : { images: imageDataUrls, prompt: userText };
+      const toolName = "tools::vision_describe";
+      const toolArgs = { images: imageDataUrls, prompt: userText };
       const toolResult = await this.executeTool(toolName, toolArgs, { evt });
       const answered = await this.presentToolResult(evt, { toolName, userText, toolResult: toolResult || "" });
       const out = this.formatOutput(evt, answered || toolResult || "") || "我看到了图片，但没有识别出可用信息。";

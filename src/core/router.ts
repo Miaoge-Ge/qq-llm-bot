@@ -26,6 +26,10 @@ export function routeEvent(
 
   const mode = config.GROUP_REPLY_MODE;
   const text = evt.text.trim();
+  const hasAtAll =
+    evt.segments.some((s) => s.type === "at" && String((s as any).data.qq) === "all") ||
+    /@all|@全体成员|@全员|@所有人/.test(text);
+  if (hasAtAll) return { kind: "ignore", reason: "at_all" };
   const isDirectToolCall = !!parseToolCallFromText(text);
   const keywords = (config.GROUP_KEYWORDS ?? []).filter(Boolean);
   const nameKeyword = (config.BOT_NAME ?? "").trim();
@@ -50,7 +54,7 @@ export function routeEvent(
   }
 
   const isMentioned =
-    evt.segments.some((s) => s.type === "at" && (String((s as any).data.qq) === botId || String((s as any).data.qq) === "all")) ||
+    evt.segments.some((s) => s.type === "at" && String((s as any).data.qq) === botId) ||
     (botId ? text.includes(`@${botId}`) : false);
 
   if (!isMentioned) {

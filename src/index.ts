@@ -12,6 +12,7 @@ import { handleCommands } from "./core/commands.js";
 import { StatsStore } from "./stats/store.js";
 import { GroupConversationWindow } from "./core/sessionWindow.js";
 import { ConversationMemory } from "./core/conversationMemory.js";
+import { extractCqFileUrls } from "./utils/cq.js";
 
 const config = loadConfig();
 
@@ -80,6 +81,9 @@ napcat.connect(async (evt) => {
     const inboundForwardText = await napcat.getForwardTextFromSegments(evt.segments);
     const inboundImageDataUrls = await napcat.getImageDataUrls(evt.segments);
     const imageDataUrls = [...inboundImageDataUrls, ...repliedImageDataUrls].filter(Boolean).slice(0, 3);
+    const inboundFileUrls = extractCqFileUrls(evt.text);
+    const repliedFileUrls = repliedText ? extractCqFileUrls(repliedText) : [];
+    const fileInputs = [...imageDataUrls, ...inboundFileUrls, ...repliedFileUrls].filter(Boolean).slice(0, 10);
 
     let effectiveText = decision.cleanedText;
     if (inboundForwardText) {
@@ -98,7 +102,7 @@ napcat.connect(async (evt) => {
         : `被回复消息包含转发聊天记录：\n${repliedForwardText}`;
     }
 
-    const reply = await orchestrator.handle(evt, decision.target, effectiveText, { imageDataUrls });
+    const reply = await orchestrator.handle(evt, decision.target, effectiveText, { imageDataUrls, fileInputs });
     await napcat.send(reply);
     memory.addUser(evt, effectiveText, evt.timestampMs || Date.now());
     memory.addAssistant(evt, reply.text, Date.now());
