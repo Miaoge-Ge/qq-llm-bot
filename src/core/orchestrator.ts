@@ -328,7 +328,17 @@ export class Orchestrator {
       }
 
       if (step >= maxToolSteps) {
-        finalText = "我需要再调用工具才能答清楚，但这轮工具调用次数到上限了。你把需求再具体一点（或拆成一步一步问），我再帮你查。";
+        messages.push({
+          role: "user",
+          content: "工具调用次数已达上限。请基于目前已有对话与工具返回信息，直接给出最终答复（自然语言），不要输出 JSON。"
+        });
+        const res2 = await this.llm.chatCompletionsWithUsage({
+          model: this.config.LLM_MODEL,
+          temperature: this.config.LLM_TEMPERATURE,
+          messages
+        });
+        await this.stats?.recordLlm(toStatsScope(evt), res2.usage);
+        finalText = res2.text.trim() || "我现在无法继续调用工具，但可以先基于已有信息回答：请把你要我确认的关键点用一句话说清楚。";
         break;
       }
 
