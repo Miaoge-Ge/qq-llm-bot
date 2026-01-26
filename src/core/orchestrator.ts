@@ -262,7 +262,8 @@ export class Orchestrator {
 
     if (wantsSaveFile && fileInputs.length) {
       const toolName = "tools::file_save";
-      const toolArgs = { files: fileInputs };
+      const filename = extractSaveFilename(cleanedText);
+      const toolArgs = filename ? { files: fileInputs, filename } : { files: fileInputs };
       const toolResult = await this.executeTool(toolName, toolArgs, { evt });
       const answered = await this.presentToolResult(evt, { toolName, userText: cleanedText.trim(), toolResult: toolResult || "" });
       const out = this.formatOutput(evt, answered || toolResult || "") || "文件已保存，但没有返回可用信息。";
@@ -477,6 +478,18 @@ function toOneBotImageFile(pathOrUrl: string): string {
   const p = s.replace(/\\/g, "/");
   if (p.startsWith("/")) return `file://${p}`;
   return p;
+}
+
+function extractSaveFilename(text: string): string | null {
+  const t = String(text ?? "").trim();
+  if (!t) return null;
+  const m =
+    t.match(/(?:保存|收藏)[\s\S]*?(?:命名|文件名|名字|叫|保存为|存为)\s*[:：]?\s*([^\s]+)\s*$/) ??
+    t.match(/^(?:保存|收藏)\s*[:：]?\s*([^\s]+)\s*$/);
+  const raw = String(m?.[1] ?? "").trim();
+  if (!raw) return null;
+  const cleaned = raw.replace(/^\[CQ:[^\]]+\]\s*/g, "").replace(/["'`]/g, "").trim();
+  return cleaned || null;
 }
 
 function detectPreferEnglish(text: string): boolean {

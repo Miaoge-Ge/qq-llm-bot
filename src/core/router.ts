@@ -14,6 +14,11 @@ export function routeEvent(
   evt: ChatEvent,
   sessions?: GroupConversationWindow
 ): RouteDecision {
+  const rawSelfId = (evt.raw as any)?.self_id;
+  const rawUserId = (evt.raw as any)?.user_id;
+  if (rawSelfId != null && rawUserId != null && String(rawSelfId) === String(rawUserId)) {
+    return { kind: "ignore", reason: "self_message" };
+  }
   if (botId && evt.userId === botId) return { kind: "ignore", reason: "self_message" };
 
   if (evt.chatType === "private") {

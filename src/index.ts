@@ -12,7 +12,7 @@ import { handleCommands } from "./core/commands.js";
 import { StatsStore } from "./stats/store.js";
 import { GroupConversationWindow } from "./core/sessionWindow.js";
 import { ConversationMemory } from "./core/conversationMemory.js";
-import { extractCqFileUrls } from "./utils/cq.js";
+import { extractCqAttachments, extractCqFileUrls } from "./utils/cq.js";
 import { stripAtMentions } from "./utils/text.js";
 
 const config = loadConfig();
@@ -28,6 +28,7 @@ const napcat = new NapCatClient(config);
 const notes = new NoteStore(config);
 const sessions = new GroupConversationWindow(config);
 const groupMuteUntilMs = new Map<string, number>();
+const recentMessageIds = new Map<string, number>();
 
 function tryParseJson(text: string): any | null {
   const s = String(text ?? "").trim();
@@ -63,6 +64,23 @@ function parsePowerCommand(text: string): { kind: "off"; hours: number } | { kin
 
 napcat.connect(async (evt) => {
   try {
+    const nowMs = Date.now();
+    const id = String(evt.messageId ?? "");
+    if (id) {
+      const last = recentMessageIds.get(id) ?? 0;
+      if (last && nowMs - last < 30_000) return;
+      recentMessageIds.set(id, nowMs);
+      if (recentMessageIds.size > 2000) {
+        for (const [k, v] of recentMessageIds) {
+          if (nowMs - v > 120_000) recentMessageIds.delete(k);
+        }
+        if (recentMessageIds.size > 2000) {
+          const firstKey = recentMessageIds.keys().next().value as string | undefined;
+          if (firstKey) recentMessageIds.delete(firstKey);
+        }
+      }
+    }
+
     const quickDisplayText = evt.text.trim() || "[non-text]";
     printInbound(evt, quickDisplayText);
 
@@ -176,9 +194,10 @@ napcat.connect(async (evt) => {
     const inboundForwardText = await napcat.getForwardTextFromSegments(evt.segments);
     const inboundImageDataUrls = await napcat.getImageDataUrls(evt.segments);
     const imageDataUrls = [...inboundImageDataUrls, ...repliedImageDataUrls].filter(Boolean).slice(0, 3);
-    const inboundFileUrls = extractCqFileUrls(evt.text);
-    const repliedFileUrls = repliedText ? extractCqFileUrls(repliedText) : [];
-    const fileInputs = [...imageDataUrls, ...inboundFileUrls, ...repliedFileUrls].filter(Boolean).slice(0, 10);
+    const includeImageUrls = imageDataUrls.length === 0;
+    const inboundFileUrls = extractFileUrlsFromText(evt.text, includeImageUrls);
+    const repliedFileUrls = repliedText ? extractFileUrlsFromText(repliedText, includeImageUrls) : [];
+    const fileInputs = dedupeStrings([...imageDataUrls, ...inboundFileUrls, ...repliedFileUrls]).slice(0, 10);
 
     let effectiveText = decision.cleanedText;
     if (inboundForwardText) {
@@ -207,6 +226,32 @@ napcat.connect(async (evt) => {
     logger.error({ err }, "handle/send failed");
   }
 });
+
+function extractFileUrlsFromText(text: string, includeImageUrls: boolean): string[] {
+  const urls: string[] = [];
+  const atts = extractCqAttachments(text);
+  if (!atts.length) return extractCqFileUrls(text);
+  for (const a of atts) {
+    const u = String(a.data.url ?? "").trim();
+    if (!u || !/^https?:\/\//i.test(u)) continue;
+    if (!includeImageUrls && a.type === "image") continue;
+    urls.push(u);
+  }
+  return urls;
+}
+
+function dedupeStrings(items: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of items) {
+    const s = String(x ?? "").trim();
+    if (!s) continue;
+    if (seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
 
 logger.info(
   {
