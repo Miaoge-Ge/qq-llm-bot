@@ -214,6 +214,17 @@ export class Orchestrator {
     const directToolCall = parseToolCallFromText(cleanedText);
     if (directToolCall) {
       const toolResult = await this.executeTool(directToolCall.tool, directToolCall.arguments ?? {}, { evt });
+      const toolKey = normalizeToolName(directToolCall.tool);
+      if (toolKey === "image_generate") {
+        const paths = extractGeneratedImagePaths(toolResult);
+        if (paths.length) {
+          const cq = paths
+            .slice(0, 3)
+            .map((p) => `[CQ:image,file=${toOneBotImageFile(p)}]`)
+            .join("\n");
+          return { target, text: `已生成${paths.length}张\n${cq}`.trim() };
+        }
+      }
       const out = await this.presentToolResult(evt, { toolName: directToolCall.tool, userText: "", toolResult: toolResult || "" });
       const finalText = await this.rewrite(evt, out || "工具没有返回可用内容。");
       return { target, text: finalText || out || "工具没有返回可用内容。" };
@@ -221,6 +232,27 @@ export class Orchestrator {
 
     const imageDataUrls = (opts?.imageDataUrls ?? []).filter(Boolean).slice(0, 3);
     const fileInputs = (opts?.fileInputs ?? []).filter(Boolean).slice(0, 10);
+
+    const wantsT2i = /(?:文生图|文字生图|生成图片|画(?:一)?张|画图|帮我画)/.test(cleanedText);
+    if (wantsT2i) {
+      const prompt0 = String(cleanedText ?? "")
+        .replace(/(?:帮我)?(?:文生图|文字生图|生成图片|画(?:一)?张|画图)/g, "")
+        .replace(/^[：:\s]+/, "")
+        .trim();
+      const prompt = prompt0 || cleanedText.trim();
+      const toolName = "tools::image_generate";
+      const toolResult = await this.executeTool(toolName, { prompt }, { evt });
+      const paths = extractGeneratedImagePaths(toolResult);
+      if (paths.length) {
+        const cq = paths
+          .slice(0, 3)
+          .map((p) => `[CQ:image,file=${toOneBotImageFile(p)}]`)
+          .join("\n");
+        return { target, text: `已生成${paths.length}张\n${cq}`.trim() };
+      }
+      const out = await this.presentToolResult(evt, { toolName, userText: prompt, toolResult: toolResult || "" });
+      return { target, text: this.formatOutput(evt, out || toolResult || "文生图失败") };
+    }
 
     const wantsSaveFile = /(?:保存|收藏|存下|存一下|收下)/.test(cleanedText);
     if (wantsSaveFile && !fileInputs.length) {
@@ -239,7 +271,7 @@ export class Orchestrator {
 
     if (imageDataUrls.length) {
       const userText = cleanedText.trim() || "请描述这张图片，并指出关键细节。";
-      const toolName = "tools::vision_describe";
+      const toolName = "tools::image_understand";
       const toolArgs = { images: imageDataUrls, prompt: userText };
       const toolResult = await this.executeTool(toolName, toolArgs, { evt });
       const answered = await this.presentToolResult(evt, { toolName, userText, toolResult: toolResult || "" });
@@ -342,6 +374,21 @@ export class Orchestrator {
         break;
       }
 
+      const toolKey = normalizeToolName(toolCall.tool);
+      if (toolKey === "image_generate") {
+        const toolResult = await this.executeTool(toolCall.tool, toolCall.arguments ?? {}, { evt });
+        const paths = extractGeneratedImagePaths(toolResult);
+        if (paths.length) {
+          const cq = paths
+            .slice(0, 3)
+            .map((p) => `[CQ:image,file=${toOneBotImageFile(p)}]`)
+            .join("\n");
+          return { target, text: `已生成${paths.length}张\n${cq}`.trim() };
+        }
+        finalText = toolResult || "文生图失败";
+        break;
+      }
+
       const toolResult = await this.executeTool(toolCall.tool, toolCall.arguments ?? {}, { evt });
       finalText = toolResult || text;
 
@@ -402,6 +449,34 @@ function tryParseJson(text: string): unknown | null {
   } catch {
     return null;
   }
+}
+
+function extractGeneratedImagePaths(toolResult: string): string[] {
+  const obj = tryParseJson(String(toolResult ?? "").trim());
+  if (!obj || typeof obj !== "object") return [];
+  const files = Array.isArray((obj as any).files) ? ((obj as any).files as any[]) : [];
+  const out: string[] = [];
+  for (const f of files) {
+    const p = f && typeof f === "object" && typeof (f as any).path === "string" ? String((f as any).path).trim() : "";
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+function normalizeToolName(raw: string): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  const parts = s.split("::");
+  return String(parts[parts.length - 1] ?? "").trim();
+}
+
+function toOneBotImageFile(pathOrUrl: string): string {
+  const s = String(pathOrUrl ?? "").trim();
+  if (!s) return s;
+  if (/^(https?:|data:|file:)/i.test(s)) return s;
+  const p = s.replace(/\\/g, "/");
+  if (p.startsWith("/")) return `file://${p}`;
+  return p;
 }
 
 function detectPreferEnglish(text: string): boolean {

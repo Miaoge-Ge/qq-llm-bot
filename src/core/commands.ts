@@ -253,7 +253,11 @@ export async function handleCommands(opts: {
     if (wantsDate) {
       try {
         await opts.stats?.recordToolCall({ date: formatDateLocal(opts.evt.timestampMs || nowMs), chatType: opts.evt.chatType, userId: opts.evt.userId, groupId: opts.evt.groupId }, "tools::get_date");
-        const raw = await opts.mcp.callTool({ server: "tools", name: "get_date", arguments: {} });
+        const raw = await opts.mcp.callTool({
+          server: "tools",
+          name: "get_date",
+          arguments: { chat_type: opts.evt.chatType, user_id: opts.evt.userId, group_id: opts.evt.groupId }
+        });
         const reply = formatDateReplyFromToolOutput(raw);
         parts.push(reply || "今天日期暂时查不到。");
       } catch (e) {
@@ -271,7 +275,11 @@ export async function handleCommands(opts: {
       } else {
         try {
           await opts.stats?.recordToolCall({ date: formatDateLocal(opts.evt.timestampMs || nowMs), chatType: opts.evt.chatType, userId: opts.evt.userId, groupId: opts.evt.groupId }, "tools::weather_query");
-          const raw = await opts.mcp.callTool({ server: "tools", name: "weather_query", arguments: { location } });
+          const raw = await opts.mcp.callTool({
+            server: "tools",
+            name: "weather_query",
+            arguments: { location, chat_type: opts.evt.chatType, user_id: opts.evt.userId, group_id: opts.evt.groupId }
+          });
           parts.push(sanitizeChatText(raw) || `${location} 的天气暂时查不到。`);
         } catch (e) {
           parts.push(`${location} 的天气暂时查不到。`);
@@ -292,12 +300,20 @@ export async function handleCommands(opts: {
       if (!q) return { handled: false };
       try {
         await opts.stats?.recordToolCall({ date: formatDateLocal(opts.evt.timestampMs || nowMs), chatType: opts.evt.chatType, userId: opts.evt.userId, groupId: opts.evt.groupId }, "tools::web_search");
-        const raw1 = await opts.mcp.callTool({ server: "tools", name: "web_search", arguments: { query: q } });
+        const raw1 = await opts.mcp.callTool({
+          server: "tools",
+          name: "web_search",
+          arguments: { query: q, chat_type: opts.evt.chatType, user_id: opts.evt.userId, group_id: opts.evt.groupId }
+        });
         const cleaned1 = sanitizeChatText(raw1);
         let out = formatSearchResultsForNews(cleaned1);
         if (!out || looksLikeWeatherSearchResult(cleaned1)) {
           const q2 = /今天|今日/.test(text) ? "今日 热搜 新闻 摘要" : "热搜 新闻 摘要";
-          const raw2 = await opts.mcp.callTool({ server: "tools", name: "web_search", arguments: { query: q2 } });
+          const raw2 = await opts.mcp.callTool({
+            server: "tools",
+            name: "web_search",
+            arguments: { query: q2, chat_type: opts.evt.chatType, user_id: opts.evt.userId, group_id: opts.evt.groupId }
+          });
           const cleaned2 = sanitizeChatText(raw2);
           out = formatSearchResultsForNews(cleaned2);
         }

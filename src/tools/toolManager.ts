@@ -78,7 +78,7 @@ export class ToolManager {
     const checkedArgs = validateArgsAgainstJsonSchema(tool.inputSchema as JsonSchema, enrichedArgs);
     if (!checkedArgs.ok) throw new Error(`参数错误：${checkedArgs.error}`);
     const baseTimeoutMs = Number(this.config.TOOL_TIMEOUT_MS ?? 15000);
-    const timeoutMs = opts.name === "vision_describe" ? Math.max(baseTimeoutMs, 45_000) : baseTimeoutMs;
+    const timeoutMs = opts.name === "image_understand" ? Math.max(baseTimeoutMs, 45_000) : baseTimeoutMs;
     return withTimeout(
       this.mcp.callTool({ server: opts.server, name: opts.name, arguments: checkedArgs.value }),
       timeoutMs,
@@ -90,15 +90,16 @@ export class ToolManager {
 function enrichMcpArguments(toolName: string, args: unknown, evt: ChatEvent): unknown {
   const name = String(toolName ?? "").trim();
   if (!isPlainObject(args ?? {})) return args;
-  if (!name.startsWith("reminder_")) return args;
   const obj = { ...(args as Record<string, unknown>) };
 
   if (typeof obj.chat_type !== "string" || !String(obj.chat_type).trim()) obj.chat_type = evt.chatType;
   if (typeof obj.user_id !== "string" || !String(obj.user_id).trim()) obj.user_id = evt.userId;
-  if (typeof obj.message_id !== "string" || !String(obj.message_id).trim()) obj.message_id = evt.messageId;
-  if (typeof obj.now_ms !== "number" || !Number.isFinite(obj.now_ms)) obj.now_ms = evt.timestampMs || Date.now();
   if (evt.chatType === "group" && evt.groupId) {
     if (typeof obj.group_id !== "string" || !String(obj.group_id).trim()) obj.group_id = evt.groupId;
+  }
+  if (name.startsWith("reminder_")) {
+    if (typeof obj.message_id !== "string" || !String(obj.message_id).trim()) obj.message_id = evt.messageId;
+    if (typeof obj.now_ms !== "number" || !Number.isFinite(obj.now_ms)) obj.now_ms = evt.timestampMs || Date.now();
   }
   return obj;
 }

@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import fs from "node:fs/promises";
 import { z } from "zod";
 import { logger } from "../../logger.js";
 import type { AppConfig } from "../../config.js";
@@ -197,17 +198,19 @@ export class NapCatClient {
   }
 
   async send(msg: SendMessage): Promise<void> {
+    const rawMessage = cqTextToSegments(msg.text) ?? msg.text;
+    const message = Array.isArray(rawMessage) ? await inlineLocalImagesToBase64(rawMessage) : rawMessage;
     if (msg.target.chatType === "private") {
       await this.callApi("send_private_msg", {
         user_id: msg.target.userId,
-        message: msg.text
+        message
       });
       return;
     }
 
     await this.callApi("send_group_msg", {
       group_id: msg.target.groupId,
-      message: msg.text
+      message
     });
   }
 
@@ -259,6 +262,96 @@ function guessImageMime(url: string): string {
   if (u.endsWith(".webp")) return "image/webp";
   if (u.endsWith(".gif")) return "image/gif";
   return "image/jpeg";
+}
+
+function cqTextToSegments(text: string): { type: string; data: Record<string, unknown> }[] | null {
+  const raw = String(text ?? "");
+  if (!raw.includes("[CQ:")) return null;
+  const re = /\[CQ:([a-zA-Z0-9_]+)(?:,([^\]]*))?\]/g;
+  const segs: { type: string; data: Record<string, unknown> }[] = [];
+  let last = 0;
+  for (let m = re.exec(raw); m; m = re.exec(raw)) {
+    const pre = raw.slice(last, m.index);
+    if (pre) segs.push({ type: "text", data: { text: pre } });
+    const cqType = String(m[1] ?? "").trim();
+    const kv = String(m[2] ?? "").trim();
+    const data: Record<string, unknown> = {};
+    if (kv) {
+      for (const part of kv.split(",")) {
+        const s = String(part ?? "");
+        const idx = s.indexOf("=");
+        if (idx === -1) continue;
+        const k = s.slice(0, idx).trim();
+        const v = s.slice(idx + 1);
+        if (k) data[k] = v;
+      }
+    }
+    segs.push({ type: cqType || "unknown", data });
+    last = m.index + m[0].length;
+  }
+  const tail = raw.slice(last);
+  if (tail) segs.push({ type: "text", data: { text: tail } });
+  const hasCq = segs.some((s) => s.type !== "text");
+  return hasCq ? segs : null;
+}
+
+async function inlineLocalImagesToBase64(
+  segs: { type: string; data: Record<string, unknown> }[]
+): Promise<{ type: string; data: Record<string, unknown> }[]> {
+  const out: { type: string; data: Record<string, unknown> }[] = [];
+  for (const seg of segs) {
+    if (seg.type !== "image") {
+      out.push(seg);
+      continue;
+    }
+    const file0 = typeof (seg.data as any).file === "string" ? String((seg.data as any).file).trim() : "";
+    if (!file0) {
+      out.push(seg);
+      continue;
+    }
+    if (/^(https?:|data:|base64:)/i.test(file0) || file0.startsWith("base64://")) {
+      out.push(seg);
+      continue;
+    }
+    const localPath = toLocalPath(file0);
+    if (!localPath) {
+      out.push(seg);
+      continue;
+    }
+    try {
+      const stat = await fs.stat(localPath);
+      if (!stat.isFile() || stat.size <= 0) {
+        out.push(seg);
+        continue;
+      }
+      if (stat.size > 6 * 1024 * 1024) {
+        out.push(seg);
+        continue;
+      }
+      const buf = await fs.readFile(localPath);
+      const b64 = buf.toString("base64");
+      out.push({ type: "image", data: { ...seg.data, file: `base64://${b64}` } });
+    } catch {
+      out.push(seg);
+    }
+  }
+  return out;
+}
+
+function toLocalPath(fileOrUrl: string): string | null {
+  const s = String(fileOrUrl ?? "").trim();
+  if (!s) return null;
+  if (s.startsWith("file://")) {
+    const p = s.replace(/^file:\/\//, "");
+    try {
+      return decodeURIComponent(p);
+    } catch {
+      return p;
+    }
+  }
+  if (s.startsWith("/")) return s;
+  if (/^[A-Za-z]:[\\/]/.test(s)) return s;
+  return null;
 }
 
 function extractForwardIds(segments: { type: string; data: Record<string, unknown> }[]): string[] {
