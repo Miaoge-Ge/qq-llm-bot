@@ -1,5 +1,9 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
 import { loadConfig } from "../config.js";
+import { projectRootDir } from "../utils/fs.js";
+
+dotenv.config({ path: path.join(projectRootDir(), ".env") });
 
 type CheckResult = { ok: boolean; detail: string };
 

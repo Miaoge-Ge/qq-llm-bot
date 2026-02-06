@@ -225,6 +225,9 @@ export class Orchestrator {
           return { target, text: `已生成${paths.length}张\n${cq}`.trim() };
         }
       }
+      if (toolKey === "gold_price_realtime") {
+        return { target, text: String(toolResult || "").trim() || "获取金价失败" };
+      }
       const out = await this.presentToolResult(evt, { toolName: directToolCall.tool, userText: "", toolResult: toolResult || "" });
       const finalText = await this.rewrite(evt, out || "工具没有返回可用内容。");
       return { target, text: finalText || out || "工具没有返回可用内容。" };
@@ -232,6 +235,13 @@ export class Orchestrator {
 
     const imageDataUrls = (opts?.imageDataUrls ?? []).filter(Boolean).slice(0, 3);
     const fileInputs = (opts?.fileInputs ?? []).filter(Boolean).slice(0, 10);
+
+    const wantsGold = /(?:金价|黄金价格|实时金价|黄金行情|伦敦金|LBMA|SGE|上金所)/i.test(cleanedText);
+    if (wantsGold) {
+      const toolName = "tools::gold_price_realtime";
+      const toolResult = await this.executeTool(toolName, {}, { evt });
+      return { target, text: String(toolResult || "").trim() || "获取金价失败" };
+    }
 
     const wantsT2i = /(?:文生图|文字生图|生成图片|画(?:一)?张|画图|帮我画)/.test(cleanedText);
     if (wantsT2i) {
@@ -390,6 +400,10 @@ export class Orchestrator {
         }
         finalText = toolResult || "文生图失败";
         break;
+      }
+      if (toolKey === "gold_price_realtime") {
+        const toolResult = await this.executeTool(toolCall.tool, toolCall.arguments ?? {}, { evt });
+        return { target, text: String(toolResult || "").trim() || "获取金价失败" };
       }
 
       const toolResult = await this.executeTool(toolCall.tool, toolCall.arguments ?? {}, { evt });

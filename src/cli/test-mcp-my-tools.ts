@@ -1,7 +1,11 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
 import fs from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { projectRootDir } from "../utils/fs.js";
+
+dotenv.config({ path: path.join(projectRootDir(), ".env") });
 
 const preferredPython = "/opt/MCP/.venv/bin/python";
 const pythonCmd = fs.existsSync(preferredPython) ? preferredPython : "python3";

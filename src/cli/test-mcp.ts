@@ -1,6 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { projectRootDir } from "../utils/fs.js";
+
+dotenv.config({ path: path.join(projectRootDir(), ".env") });
 
 const transport = new StdioClientTransport({ command: "python3", args: ["/opt/MCP/server.py"] });
 const client = new Client({ name: "qq-llm-bot-mcp-test", version: "0.1.0" });

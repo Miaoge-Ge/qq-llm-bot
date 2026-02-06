@@ -1,4 +1,5 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
 import { loadConfig } from "./config.js";
 import { logger } from "./logger.js";
 import { NapCatClient } from "./adapters/napcatqq/NapCatClient.js";
@@ -14,6 +15,9 @@ import { GroupConversationWindow } from "./core/sessionWindow.js";
 import { ConversationMemory } from "./core/conversationMemory.js";
 import { extractCqAttachments, extractCqFileUrls } from "./utils/cq.js";
 import { stripAtMentions } from "./utils/text.js";
+import { projectRootDir } from "./utils/fs.js";
+
+dotenv.config({ path: path.join(projectRootDir(), ".env") });
 
 const config = loadConfig();
 
